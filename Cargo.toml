@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 xcb = "0.9.0"
+log = "0.4.8"
+simple_logger = "1.6.0"
