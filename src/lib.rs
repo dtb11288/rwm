@@ -6,6 +6,7 @@ mod screen;
 mod display;
 mod key;
 mod layouts;
+mod state;
 pub mod displays;
 pub mod config;
 pub mod manager;

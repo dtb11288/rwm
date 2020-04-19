@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WindowType {
     Desktop,
     Dock,
@@ -16,14 +16,20 @@ pub enum WindowType {
     Normal,
 }
 
-#[derive(Debug)]
-pub struct Window<W> {
+#[derive(Debug, Clone)]
+pub struct Window<W: Clone + PartialEq> {
     id: W,
     window_type: WindowType,
     pub view: View,
 }
 
-#[derive(Debug, Default)]
+impl<W: PartialEq + Clone> PartialEq for Window<W> {
+    fn eq(&self, other: &Self) -> bool {
+        self.get_id() == other.get_id()
+    }
+}
+
+#[derive(Debug, Default, Clone)]
 pub struct View {
     pub x: u32,
     pub y: u32,
@@ -37,8 +43,8 @@ impl View {
     }
 }
 
-impl<W> Window<W> {
-    pub fn into(&self) -> &W {
+impl<W: Clone + PartialEq> Window<W> {
+    pub fn get_id(&self) -> &W {
         &self.id
     }
 

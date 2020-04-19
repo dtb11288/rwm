@@ -1,9 +1,9 @@
 use crate::config::Config;
-use crate::window::{Window, WindowType};
+use crate::window::{Window, WindowType, View};
 use std::fmt::Debug;
 
 #[derive(Debug)]
-pub enum Event<W: Debug> {
+pub enum Event<W: Debug + PartialEq> {
     KeyPressed(String),
     WindowAdded(W, WindowType),
     WindowRemoved(W),
@@ -11,12 +11,10 @@ pub enum Event<W: Debug> {
     Ignored
 }
 
-pub trait DisplayServer {
-    type Event;
-    type Window: Debug;
-    fn new(config: Config) -> Self;
-    fn run<F>(&self, handler: F) where F: Fn(Self::Event);
-    fn match_event(&self, event: Self::Event) -> Event<Self::Window>;
+pub trait DisplayServer: Iterator<Item=Event<<Self as DisplayServer>::Window>>{
+    type Window: Debug + Clone + PartialEq;
+    fn new(config: &Config) -> Self;
+    fn get_root_view(&self) -> View;
     fn configure_window(&self, window: &Window<Self::Window>);
     fn close_window(&self, window: &Window<Self::Window>);
 }

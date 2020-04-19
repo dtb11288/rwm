@@ -1,18 +1,28 @@
 use crate::display::{DisplayServer, Event};
 use crate::config::Config;
-use crate::window::{Window, WindowType};
+use crate::window::{Window, WindowType, View};
+use std::rc::Rc;
 
+#[derive(Clone)]
 pub struct XcbDisplayServer {
-    config: Config,
     root: xcb::Window,
-    connection: xcb::Connection,
+    connection: Rc<xcb::Connection>,
+}
+
+impl Iterator for XcbDisplayServer {
+    type Item = Event<xcb::Window>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.connection.flush();
+        self.connection.wait_for_event()
+            .map(|event| self.match_event(event))
+    }
 }
 
 impl DisplayServer for XcbDisplayServer {
-    type Event = xcb::GenericEvent;
     type Window = xcb::Window;
 
-    fn new(config: Config) -> Self {
+    fn new(_config: &Config) -> Self {
         let (connection, screen_num) = xcb::Connection::connect(None).unwrap();
         let setup = connection.get_setup();
         let screen = setup.roots().nth(screen_num as usize).unwrap();
@@ -35,23 +45,42 @@ impl DisplayServer for XcbDisplayServer {
         }
 
         XcbDisplayServer {
-            config,
             root,
-            connection,
+            connection: Rc::new(connection),
         }
     }
 
-    fn run<F>(&self, handler: F) where F: Fn(Self::Event) {
-        loop {
-            self.connection.flush();
-            match self.connection.wait_for_event() {
-                Some(event) => handler(event),
-                None => {},
-            }
+    fn get_root_view(&self) -> View {
+        let reply = xcb::get_geometry(&self.connection, self.root)
+            .get_reply()
+            .unwrap();
+        View {
+            x: 0,
+            y: 0,
+            width: u32::from(reply.width()),
+            height: u32::from(reply.height()),
         }
     }
 
-    fn match_event(&self, event: Self::Event) -> Event<Self::Window> {
+    fn configure_window(&self, window: &Window<Self::Window>) {
+        let view = &window.view;
+        let values = [
+            (xcb::CONFIG_WINDOW_X as u16, view.x),
+            (xcb::CONFIG_WINDOW_Y as u16, view.y),
+            (xcb::CONFIG_WINDOW_WIDTH as u16, view.width),
+            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.height),
+        ];
+        xcb::configure_window(&self.connection, *window.get_id(), &values);
+        xcb::map_window(&self.connection, *window.get_id());
+    }
+
+    fn close_window(&self, _window: &Window<Self::Window>) {
+        unimplemented!()
+    }
+}
+
+impl XcbDisplayServer {
+    fn match_event(&self, event: xcb::GenericEvent) -> Event<<Self as DisplayServer>::Window> {
         match event.response_type() {
             xcb::CONFIGURE_REQUEST => {
                 Event::Ignored
@@ -83,20 +112,5 @@ impl DisplayServer for XcbDisplayServer {
             },
             _ => Event::Ignored,
         }
-    }
-
-    fn configure_window(&self, window: &Window<Self::Window>) {
-        let view = &window.view;
-        let values = [
-            (xcb::CONFIG_WINDOW_X as u16, view.x),
-            (xcb::CONFIG_WINDOW_Y as u16, view.y),
-            (xcb::CONFIG_WINDOW_WIDTH as u16, view.width),
-            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.height),
-        ];
-        xcb::configure_window(&self.connection, *window.into(), &values);
-    }
-
-    fn close_window(&self, _window: &Window<Self::Window>) {
-        unimplemented!()
     }
 }
