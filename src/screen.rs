@@ -1,6 +1,6 @@
-use crate::window::View;
+use crate::window::Geometry;
 
 pub struct Screen {
     workspace: String,
-    view: View,
+    view: Geometry,
 }

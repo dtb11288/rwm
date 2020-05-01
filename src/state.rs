@@ -1,26 +1,30 @@
 use crate::workspace::Workspace;
 use crate::display::Event;
-use crate::window::{WindowType, Window, View};
+use crate::window::{WindowType, Window, Geometry, WindowId};
 use crate::config::Config;
-use crate::layouts::tall::Tall;
-use std::fmt::Debug;
-use log::{debug};
+use crate::layouts::LayoutType;
+use log::debug;
 
-pub struct State<W: Clone + PartialEq + Debug> {
+pub struct State {
     current: String,
-    pub view: View,
-    pub workspaces: Vec<Workspace<W>>,
+    pub view: Geometry,
+    pub workspaces: Vec<Workspace>,
+    pub layouts: Vec<LayoutType>,
 }
 
-impl<W: Debug + Clone + PartialEq + Debug> State<W> {
-    pub fn new(config: &Config, view: View) -> Self {
-        let workspaces = config.tags.iter().map(|w| {
-            Workspace::new(w.clone(), vec![], Box::new(Tall {}), view.clone())
-        }).collect();
+impl State {
+    pub fn new(config: &Config, view: Geometry) -> Self {
+        let layouts = config.layouts.clone();
+        let first_layout = config.layouts.first().unwrap();
+        let workspaces = config.workspaces.iter()
+            .map(|w| Workspace::new(w.clone(), vec![], first_layout.clone().into(), view.clone()))
+            .collect::<Vec<Workspace>>();
+        let first_workspace = workspaces.first().unwrap();
         Self {
             view,
-            current: "1".into(),
+            current: first_workspace.get_name().to_string(),
             workspaces,
+            layouts,
         }
     }
 
@@ -34,8 +38,8 @@ impl<W: Debug + Clone + PartialEq + Debug> State<W> {
         }
     }
 
-    pub fn handle_event(self, event: Event<W>) -> Self {
-        debug!("Call handle_event for {:?}", event);
+    pub fn handle_event(self, event: Event) -> Self {
+        debug!("Handling event {:?}", event);
         match event {
             Event::WindowAdded(window, window_type) => {
                 self.add_window(window, window_type)
@@ -50,7 +54,7 @@ impl<W: Debug + Clone + PartialEq + Debug> State<W> {
         }
     }
 
-    fn add_window(self, window: W, window_type: WindowType) -> Self {
+    fn add_window(self, window: WindowId, window_type: WindowType) -> Self {
         debug!("Adding window id {:?}", &window);
         let window = Window::new(window, window_type);
         let current = &self.current;
@@ -62,15 +66,15 @@ impl<W: Debug + Clone + PartialEq + Debug> State<W> {
                     workspace
                 }
             })
-            .collect::<Vec<Workspace<W>>>();
+            .collect::<Vec<Workspace>>();
         Self {
             workspaces,
             ..self
         }
     }
 
-    fn remove_window(self, window: W) -> Self {
-        debug!("Adding window id {:?}", &window);
+    fn remove_window(self, window: WindowId) -> Self {
+        debug!("Removing window id {:?}", &window);
         let workspaces = self.workspaces.into_iter()
             .map(|workspace| {
                 workspace.remove_window(window.clone())

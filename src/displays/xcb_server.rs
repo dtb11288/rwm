@@ -1,16 +1,17 @@
 use crate::display::{DisplayServer, Event};
 use crate::config::Config;
-use crate::window::{Window, WindowType, View};
+use crate::window::{Window, WindowType, Geometry};
 use std::rc::Rc;
+use xcb_util::ewmh;
 
 #[derive(Clone)]
 pub struct XcbDisplayServer {
     root: xcb::Window,
-    connection: Rc<xcb::Connection>,
+    connection: Rc<ewmh::Connection>,
 }
 
 impl Iterator for XcbDisplayServer {
-    type Item = Event<xcb::Window>;
+    type Item = Event;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.connection.flush();
@@ -20,10 +21,40 @@ impl Iterator for XcbDisplayServer {
 }
 
 impl DisplayServer for XcbDisplayServer {
-    type Window = xcb::Window;
+    fn get_root_view(&self) -> Geometry {
+        let reply = xcb::get_geometry(&self.connection, self.root)
+            .get_reply()
+            .unwrap();
+        Geometry {
+            x: 0,
+            y: 0,
+            width: u32::from(reply.width()),
+            height: u32::from(reply.height()),
+        }
+    }
 
-    fn new(_config: &Config) -> Self {
+    fn configure_window(&self, window: &Window) {
+        let view = &window.view;
+        let values = [
+            (xcb::CONFIG_WINDOW_X as u16, view.x),
+            (xcb::CONFIG_WINDOW_Y as u16, view.y),
+            (xcb::CONFIG_WINDOW_WIDTH as u16, view.width),
+            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.height),
+        ];
+        let window_id = window.get_id().parse::<xcb::Window>().unwrap();
+        xcb::configure_window(&self.connection, window_id, &values);
+        xcb::map_window(&self.connection, window_id);
+    }
+
+    fn close_window(&self, _window: &Window) {
+        unimplemented!()
+    }
+}
+
+impl XcbDisplayServer {
+    pub fn new(_config: &Config) -> Self {
         let (connection, screen_num) = xcb::Connection::connect(None).unwrap();
+        let connection = ewmh::Connection::connect(connection).map_err(|e| e.0).unwrap();
         let setup = connection.get_setup();
         let screen = setup.roots().nth(screen_num as usize).unwrap();
         let root = screen.root();
@@ -50,37 +81,7 @@ impl DisplayServer for XcbDisplayServer {
         }
     }
 
-    fn get_root_view(&self) -> View {
-        let reply = xcb::get_geometry(&self.connection, self.root)
-            .get_reply()
-            .unwrap();
-        View {
-            x: 0,
-            y: 0,
-            width: u32::from(reply.width()),
-            height: u32::from(reply.height()),
-        }
-    }
-
-    fn configure_window(&self, window: &Window<Self::Window>) {
-        let view = &window.view;
-        let values = [
-            (xcb::CONFIG_WINDOW_X as u16, view.x),
-            (xcb::CONFIG_WINDOW_Y as u16, view.y),
-            (xcb::CONFIG_WINDOW_WIDTH as u16, view.width),
-            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.height),
-        ];
-        xcb::configure_window(&self.connection, *window.get_id(), &values);
-        xcb::map_window(&self.connection, *window.get_id());
-    }
-
-    fn close_window(&self, _window: &Window<Self::Window>) {
-        unimplemented!()
-    }
-}
-
-impl XcbDisplayServer {
-    fn match_event(&self, event: xcb::GenericEvent) -> Event<<Self as DisplayServer>::Window> {
+    fn match_event(&self, event: xcb::GenericEvent) -> Event {
         match event.response_type() {
             xcb::CONFIGURE_REQUEST => {
                 Event::Ignored
@@ -92,23 +93,23 @@ impl XcbDisplayServer {
             },
             xcb::MAP_REQUEST => {
                 let map_request: &xcb::MapRequestEvent = unsafe { xcb::cast_event(&event) };
-                Event::WindowAdded(map_request.window(), WindowType::Normal)
+                Event::WindowAdded(map_request.window().to_string(), WindowType::Normal)
             },
             xcb::UNMAP_NOTIFY => {
                 let unmap_notify: &xcb::UnmapNotifyEvent = unsafe { xcb::cast_event(&event) };
                 if unmap_notify.event() == self.root {
-                    Event::WindowRemoved(unmap_notify.event())
+                    Event::WindowRemoved(unmap_notify.event().to_string())
                 } else {
                     Event::Ignored
                 }
             },
             xcb::DESTROY_NOTIFY => {
                 let destroy_event: &xcb::DestroyNotifyEvent = unsafe { xcb::cast_event(&event) };
-                Event::WindowRemoved(destroy_event.window())
+                Event::WindowRemoved(destroy_event.window().to_string())
             },
             xcb::ENTER_NOTIFY => {
                 let enter_event: &xcb::EnterNotifyEvent = unsafe { xcb::cast_event(&event) };
-                Event::WindowFocused(enter_event.event())
+                Event::WindowFocused(enter_event.event().to_string())
             },
             _ => Event::Ignored,
         }

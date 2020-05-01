@@ -2,30 +2,32 @@ use log::{info, debug};
 use crate::display::DisplayServer;
 use crate::config::Config;
 use crate::state::State;
+use crate::displays::xcb_server::XcbDisplayServer;
+use crate::displays::DisplayType;
 
-pub struct Manager<D> {
+pub struct Manager {
     config: Config,
-    display: D,
+    display: Box<dyn DisplayServer>,
 }
 
-impl<D: DisplayServer + Clone> Manager<D> {
+impl Manager {
     pub fn new(config: Config) -> Self {
-        info!("Start WM ...");
-        let display = D::new(&config);
+        let display = match &config.display {
+            DisplayType::Xcb => XcbDisplayServer::new(&config),
+        };
         Manager {
             config,
-            display,
+            display: Box::new(display),
         }
     }
 
-    pub fn update(&self, state: &State<D::Window>) {
+    pub fn update(&self, state: &State) {
         state.workspaces.iter()
-            .filter(|w| w.is_changed())
+            .filter(|&w| w.is_changed())
             .for_each(|w| {
-                debug!("Update workspace {} with {} windows", w.get_name(), w.windows.len());
+                debug!("Update workspace {:?}", w);
                 w.windows.iter()
                     .for_each(|w| {
-                        dbg!(&w);
                         self.display.configure_window(w)
                     })
             });

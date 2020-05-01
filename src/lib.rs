@@ -1,4 +1,3 @@
-mod command;
 mod window;
 mod workspace;
 mod layout;
@@ -7,6 +6,6 @@ mod display;
 mod key;
 mod layouts;
 mod state;
-pub mod displays;
+mod displays;
 pub mod config;
 pub mod manager;
