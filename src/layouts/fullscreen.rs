@@ -1,16 +1,12 @@
 use crate::window::{Window, Geometry};
-use crate::layout::Layout;
-use crate::layouts::LayoutType;
+use crate::layouts::Layout;
+use crate::stack::Stack;
 
 #[derive(Clone)]
 pub struct FullScreen;
 
 impl Layout for FullScreen {
-    fn get_name(&self) -> LayoutType {
-        LayoutType::FullScreen
-    }
-
-    fn handle_layout(&self, workspace_view: &Geometry, windows: Vec<Window>) -> Vec<Window> {
+    fn handle_layout(&self, _view: &Geometry, _windows: Stack<Window>) -> Stack<Window> {
         unimplemented!()
     }
 }

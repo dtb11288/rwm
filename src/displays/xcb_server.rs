@@ -1,4 +1,4 @@
-use crate::display::{DisplayServer, Event};
+use crate::displays::{DisplayServer, Event};
 use crate::config::Config;
 use crate::window::{Window, WindowType, Geometry};
 use std::rc::Rc;
@@ -25,23 +25,18 @@ impl DisplayServer for XcbDisplayServer {
         let reply = xcb::get_geometry(&self.connection, self.root)
             .get_reply()
             .unwrap();
-        Geometry {
-            x: 0,
-            y: 0,
-            width: u32::from(reply.width()),
-            height: u32::from(reply.height()),
-        }
+        Geometry::new(0, 0, u32::from(reply.width()), u32::from(reply.height()))
     }
 
     fn configure_window(&self, window: &Window) {
-        let view = &window.view;
+        let view = window.get_view();
         let values = [
-            (xcb::CONFIG_WINDOW_X as u16, view.x),
-            (xcb::CONFIG_WINDOW_Y as u16, view.y),
-            (xcb::CONFIG_WINDOW_WIDTH as u16, view.width),
-            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.height),
+            (xcb::CONFIG_WINDOW_X as u16, view.position.x as u32),
+            (xcb::CONFIG_WINDOW_Y as u16, view.position.y as u32),
+            (xcb::CONFIG_WINDOW_WIDTH as u16, view.size.width),
+            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.size.height),
         ];
-        let window_id = window.get_id().parse::<xcb::Window>().unwrap();
+        let window_id = window.parse::<xcb::Window>().unwrap();
         xcb::configure_window(&self.connection, window_id, &values);
         xcb::map_window(&self.connection, window_id);
     }

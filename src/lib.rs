@@ -1,11 +1,10 @@
 mod window;
 mod workspace;
-mod layout;
 mod screen;
-mod display;
 mod key;
 mod layouts;
 mod state;
 mod displays;
+mod stack;
 pub mod config;
 pub mod manager;

@@ -11,7 +11,7 @@ pub struct Config {
 impl Config {
     pub fn new() -> Self {
         Self {
-            layouts: vec!["tall".into()],
+            layouts: vec!["tall".into(), "fullscreen".into()],
             display: "xcb".into(),
             workspaces: vec!["1", "2", "3"].into_iter().map(String::from).collect(),
         }

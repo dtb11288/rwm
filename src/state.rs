@@ -1,36 +1,28 @@
 use crate::workspace::Workspace;
-use crate::display::Event;
 use crate::window::{WindowType, Window, Geometry, WindowId};
 use crate::config::Config;
+use crate::displays::Event;
+use crate::stack::Stack;
 use crate::layouts::LayoutType;
-use log::debug;
 
 pub struct State {
-    current: String,
     pub view: Geometry,
-    pub workspaces: Vec<Workspace>,
-    pub layouts: Vec<LayoutType>,
+    pub workspaces: Stack<Workspace>,
 }
 
 impl State {
     pub fn new(config: &Config, view: Geometry) -> Self {
-        let layouts = config.layouts.clone();
-        let first_layout = config.layouts.first().unwrap();
+        let layouts: Stack<LayoutType> = config.layouts.clone().into();
         let workspaces = config.workspaces.iter()
-            .map(|w| Workspace::new(w.clone(), vec![], first_layout.clone().into(), view.clone()))
-            .collect::<Vec<Workspace>>();
-        let first_workspace = workspaces.first().unwrap();
-        Self {
-            view,
-            current: first_workspace.get_name().to_string(),
-            workspaces,
-            layouts,
-        }
+            .map(|name| Workspace::new(name.clone(), Stack::new(), layouts.clone(), view.clone()))
+            .collect::<Vec<Workspace>>()
+            .into();
+        Self { view, workspaces }
     }
 
     pub fn reset(self) -> Self {
         let workspaces = self.workspaces.into_iter()
-            .map(Workspace::reset)
+            .map(|(is_current, workspace)| (is_current, workspace.reset()))
             .collect();
         Self {
             workspaces,
@@ -39,7 +31,7 @@ impl State {
     }
 
     pub fn handle_event(self, event: Event) -> Self {
-        debug!("Handling event {:?}", event);
+        log::debug!("Handling event {:?}", event);
         match event {
             Event::WindowAdded(window, window_type) => {
                 self.add_window(window, window_type)
@@ -55,18 +47,17 @@ impl State {
     }
 
     fn add_window(self, window: WindowId, window_type: WindowType) -> Self {
-        debug!("Adding window id {:?}", &window);
         let window = Window::new(window, window_type);
-        let current = &self.current;
         let workspaces = self.workspaces.into_iter()
-            .map(move |workspace| {
-                if workspace.get_name() == current {
+            .map(move |(is_current, workspace)| {
+                let workspace = if is_current {
                     workspace.add_window(window.clone())
                 } else {
                     workspace
-                }
+                };
+                (is_current, workspace)
             })
-            .collect::<Vec<Workspace>>();
+            .collect::<Stack<Workspace>>();
         Self {
             workspaces,
             ..self
@@ -74,10 +65,9 @@ impl State {
     }
 
     fn remove_window(self, window: WindowId) -> Self {
-        debug!("Removing window id {:?}", &window);
         let workspaces = self.workspaces.into_iter()
-            .map(|workspace| {
-                workspace.remove_window(window.clone())
+            .map(|(is_current, workspace)| {
+                (is_current, workspace.remove_window(window.clone()))
             })
             .collect();
         Self {

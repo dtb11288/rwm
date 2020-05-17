@@ -1,7 +1,8 @@
-use crate::layout::Layout;
+use crate::layouts::LayoutType;
 use crate::window::{Window, Geometry, WindowId};
 use std::fmt;
-use log::{debug};
+use std::ops::Deref;
+use crate::stack::Stack;
 
 impl PartialEq for Workspace {
     fn eq(&self, other: &Self) -> bool {
@@ -11,21 +12,30 @@ impl PartialEq for Workspace {
 
 impl fmt::Debug for Workspace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{} - {:?} - {:?} - {:?}]", self.get_name(), &self.layout, &self.view, &self.windows)
+        write!(f, "[{} - {:?} - {:?} - {:?}]", self.get_name(), self.layouts.get_focus().unwrap(), &self.view, &self.windows)
     }
 }
 
+#[derive(Clone)]
 pub struct Workspace {
     name: String,
-    layout: Box<dyn Layout>,
     is_changed: bool,
-    pub view: Geometry,
-    pub windows: Vec<Window>,
+    view: Geometry,
+    windows: Stack<Window>,
+    layouts: Stack<LayoutType>,
+}
+
+impl Deref for Workspace {
+    type Target = Stack<Window>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.windows
+    }
 }
 
 impl Workspace {
-    pub fn new(name: String, windows: Vec<Window>, layout: Box<dyn Layout>, view: Geometry) -> Self {
-        let workspace = Self { name, windows, layout, is_changed: false, view };
+    pub fn new(name: String, windows: Stack<Window>, layouts: Stack<LayoutType>, view: Geometry) -> Self {
+        let workspace = Self { name, windows, layouts, is_changed: false, view };
         workspace.perform_layout()
     }
 
@@ -48,36 +58,31 @@ impl Workspace {
     }
 
     pub fn add_window(mut self, window: Window) -> Self {
-        if self.windows.iter().find(|&w| w == &window).is_none() {
-            self.windows.push(window);
-            self.perform_layout()
-        } else {
-            self
-        }
-    }
-
-    pub fn remove_window(mut self, window: WindowId) -> Self {
-        let position = self.windows.iter().position(|w| w.get_id() == &window);
-        if let Some(position) = position {
-            self.windows.remove(position);
-            self.perform_layout()
-        } else {
-            self
-        }
-    }
-
-    pub fn change_layout<L: Layout + 'static>(mut self, layout: L) -> Self {
-        self.layout = Box::new(layout);
+        log::debug!("Adding window id {:?} to workspace {}", &window.deref(), self.get_name());
+        self.windows = self.windows.add(window);
         self.perform_layout()
     }
 
+    pub fn remove_window(mut self, window: WindowId) -> Self {
+        log::debug!("Removing window id {:?} from workspace", &window);
+        let old_len = self.windows.len();
+        self.windows = self.windows.remove_by(|w| w.deref() == &window);
+        if old_len != self.windows.len() {
+            self.perform_layout()
+        } else {
+            self
+        }
+    }
+
     fn perform_layout(self) -> Self {
-        debug!("Updating layout {:?} for workspace {}", &self.layout, &self.name);
-        let handled_windows = self.layout.handle_layout(&self.view, self.windows);
+        if self.windows.is_empty() {
+            return self
+        }
+        log::debug!("Updating layout for workspace {} using {:?}", &self.name, &self.layouts.get_focus().unwrap());
+        let handled_windows = self.layouts.get_focus().unwrap().handle_layout(&self.view, self.windows);
         Self {
             windows: handled_windows,
-            is_changed: true,
             ..self
-        }
+        }.need_update()
     }
 }
