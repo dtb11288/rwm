@@ -38,7 +38,7 @@ pub enum Event {
 pub trait DisplayServer: Iterator<Item=Event> + CloneServer {
     fn get_root_view(&self) -> Geometry;
     fn configure_window(&self, window: &Window);
-    fn close_window(&self, window: &Window);
+    fn set_visibility(&self, window: &WindowId, show: bool);
 }
 
 pub trait CloneServer {

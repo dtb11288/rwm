@@ -1,8 +1,9 @@
 use crate::displays::{DisplayServer, Event};
 use crate::config::Config;
-use crate::window::{Window, WindowType, Geometry};
+use crate::window::{Window, WindowType, Geometry, WindowId};
 use std::rc::Rc;
 use xcb_util::ewmh;
+use xcb_util::keysyms::KeySymbols;
 
 #[derive(Clone)]
 pub struct XcbDisplayServer {
@@ -38,11 +39,22 @@ impl DisplayServer for XcbDisplayServer {
         ];
         let window_id = window.parse::<xcb::Window>().unwrap();
         xcb::configure_window(&self.connection, window_id, &values);
-        xcb::map_window(&self.connection, window_id);
+        let events = [(
+            xcb::CW_EVENT_MASK,
+            xcb::EVENT_MASK_BUTTON_PRESS |
+                xcb::EVENT_MASK_BUTTON_RELEASE |
+                xcb::EVENT_MASK_KEY_PRESS
+        )];
+        xcb::change_window_attributes(&self.connection, window_id, &events);
     }
 
-    fn close_window(&self, _window: &Window) {
-        unimplemented!()
+    fn set_visibility(&self, window: &WindowId, show: bool) {
+        let window_id = window.parse::<xcb::Window>().unwrap();
+        if show {
+            xcb::map_window(&self.connection, window_id);
+        } else {
+            xcb::unmap_window(&self.connection, window_id);
+        }
     }
 }
 
@@ -83,8 +95,11 @@ impl XcbDisplayServer {
             },
             xcb::KEY_PRESS => {
                 let key_press: &xcb::KeyPressEvent = unsafe { xcb::cast_event(&event) };
-                dbg!(key_press.detail());
-                Event::KeyPressed("q".into())
+                let key_symbols = KeySymbols::new(&self.connection);
+                let keysym = key_symbols.press_lookup_keysym(key_press, 0);
+                let mod_mask = u32::from(key_press.state());
+                // let key = KeyCombo { mod_mask, keysym };
+                Event::KeyPressed(format!("{} {}", mod_mask, keysym))
             },
             xcb::MAP_REQUEST => {
                 let map_request: &xcb::MapRequestEvent = unsafe { xcb::cast_event(&event) };

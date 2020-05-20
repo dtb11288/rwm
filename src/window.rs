@@ -34,6 +34,7 @@ pub struct Window {
     id: WindowId,
     window_type: WindowType,
     view: Option<Geometry>,
+    visible: bool,
 }
 
 impl PartialEq for Window {
@@ -99,7 +100,16 @@ impl Geometry {
 
 impl Window {
     pub fn new(id: WindowId, window_type: WindowType) -> Self {
-        Window { id, window_type, view: None }
+        Window { id, window_type, view: None, visible: false }
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
+
+    pub fn visible(mut self, visible: bool) -> Self {
+        self.visible = visible;
+        self
     }
 
     pub fn set_view(mut self, view: Geometry) -> Self {

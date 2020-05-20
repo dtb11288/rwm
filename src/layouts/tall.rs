@@ -15,7 +15,7 @@ impl Layout for Tall {
                 let height = if pos == 0 { view.size.height } else { view.size.height / (window_count as u32 - 1) };
                 let x = if pos == 0 { view.position.x } else { width as i32 } + view.position.x;
                 let y = if pos == 0 { view.position.y } else { height as i32 * (pos as i32 - 1) } + view.position.y;
-                (is_current, window.set_view(Geometry::new(x, y, width, height)))
+                (is_current, window.set_view(Geometry::new(x, y, width, height)).visible(true))
             })
             .collect()
     }

@@ -1,15 +1,15 @@
-pub enum ModKey<K> {
-    Shift(K),
-    Lock(K),
-    Control(K),
-    Mod1(K),
-    Mod2(K),
-    Mod3(K),
-    Mod4(K),
-    Mod5(K),
+pub enum ModKey {
+    Shift,
+    Lock,
+    Control,
+    Mod1,
+    Mod2,
+    Mod3,
+    Mod4,
+    Mod5,
 }
 
-pub struct KeyCombo<K> {
-    mod_mask: K,
-    key: K
+pub struct KeyCombo {
+    mod_mask: ModKey,
+    key: String,
 }

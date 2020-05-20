@@ -39,25 +39,64 @@ impl State {
             Event::WindowRemoved(window) => {
                 self.remove_window(window)
             },
-            Event::KeyPressed(_key) => {
-                self
+            Event::KeyPressed(key) => {
+                self.key_pressed(key)
             },
             _ => self
         }
     }
 
+    fn key_pressed(self, key: String) -> Self {
+        match key.as_str() {
+            "8 49" => {
+                std::process::Command::new("urxvt").spawn().ok();
+                self
+            },
+            "8 50" => {
+                self.next_workspace()
+            },
+            "8 51" => {
+                self.previous_workspace()
+            },
+            _ => self
+        }
+    }
+
+    fn next_workspace(self) -> Self {
+        let workspaces = self.workspaces
+            .update_focus(|workspace| workspace.invisible())
+            .next()
+            .update_focus(|workspace| workspace.visible());
+        Self {
+            workspaces,
+            ..self
+        }
+    }
+
+    fn previous_workspace(self) -> Self {
+        let workspaces = self.workspaces
+            .update_focus(|workspace| workspace.invisible())
+            .previous()
+            .update_focus(|workspace| workspace.visible());
+        Self {
+            workspaces,
+            ..self
+        }
+    }
+
+    fn next_window(mut self) -> Self {
+        self.workspaces = self.workspaces.update_focus(Workspace::next_window);
+        self
+    }
+
+    fn previous_window(mut self) -> Self {
+        self.workspaces = self.workspaces.update_focus(Workspace::previous_window);
+        self
+    }
+
     fn add_window(self, window: WindowId, window_type: WindowType) -> Self {
-        let window = Window::new(window, window_type);
-        let workspaces = self.workspaces.into_iter()
-            .map(move |(is_current, workspace)| {
-                let workspace = if is_current {
-                    workspace.add_window(window.clone())
-                } else {
-                    workspace
-                };
-                (is_current, workspace)
-            })
-            .collect::<Stack<Workspace>>();
+        let window = Window::new(window, window_type).visible(true);
+        let workspaces = self.workspaces.update_focus(move |workspace| workspace.add_window(window));
         Self {
             workspaces,
             ..self

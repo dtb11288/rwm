@@ -39,6 +39,17 @@ impl Workspace {
         workspace.perform_layout()
     }
 
+    pub fn invisible(mut self) -> Self {
+        self.windows = self.windows.into_iter()
+            .map(|(is_current, window)| (is_current, window.visible(false)))
+            .collect();
+        self.need_update()
+    }
+
+    pub fn visible(self) -> Self {
+        self.perform_layout()
+    }
+
     pub fn get_name(&self) -> &str {
         &self.name
     }
@@ -55,6 +66,18 @@ impl Workspace {
     pub fn need_update(mut self) -> Self {
         self.is_changed = true;
         self
+    }
+
+    pub fn next_window(mut self) -> Self {
+        log::debug!("Focus next window");
+        self.windows = self.windows.next();
+        self.perform_layout()
+    }
+
+    pub fn previous_window(mut self) -> Self {
+        log::debug!("Focus previous window");
+        self.windows = self.windows.previous();
+        self.perform_layout()
     }
 
     pub fn add_window(mut self, window: Window) -> Self {

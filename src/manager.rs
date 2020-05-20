@@ -20,7 +20,8 @@ impl Manager {
                 log::debug!("Update workspace {:?}", workspace);
                 workspace.iter()
                     .for_each(|window| {
-                        self.display.configure_window(window)
+                        self.display.configure_window(window);
+                        self.display.set_visibility(&window, window.is_visible());
                     })
             });
     }
