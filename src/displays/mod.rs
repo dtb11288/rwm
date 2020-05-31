@@ -1,6 +1,7 @@
 use crate::window::{Window, WindowType, Geometry, WindowId};
 use crate::config::Config;
 use std::fmt::Debug;
+use crate::keys::xcb_keys::XcbKeyCombo;
 
 pub mod xcb_server;
 
@@ -28,7 +29,7 @@ impl From<&str> for DisplayType {
 
 #[derive(Debug)]
 pub enum Event {
-    KeyPressed(String),
+    KeyPressed(XcbKeyCombo),
     WindowAdded(WindowId, WindowType),
     WindowRemoved(WindowId),
     WindowFocused(WindowId),
@@ -39,6 +40,7 @@ pub trait DisplayServer: Iterator<Item=Event> + CloneServer {
     fn get_root_view(&self) -> Geometry;
     fn configure_window(&self, window: &Window);
     fn set_visibility(&self, window: &WindowId, show: bool);
+    fn quit(&self);
 }
 
 pub trait CloneServer {

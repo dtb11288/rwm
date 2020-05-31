@@ -12,7 +12,7 @@ impl PartialEq for Workspace {
 
 impl fmt::Debug for Workspace {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{} - {:?} - {:?} - {:?}]", self.get_name(), self.layouts.get_focus().unwrap(), &self.view, &self.windows)
+        write!(f, "[{} - {:?} - {:?} - {:?}]", self.get_name(), self.layouts.get_current().unwrap(), &self.view, &self.windows)
     }
 }
 
@@ -39,15 +39,15 @@ impl Workspace {
         workspace.perform_layout()
     }
 
-    pub fn invisible(mut self) -> Self {
-        self.windows = self.windows.into_iter()
-            .map(|(is_current, window)| (is_current, window.visible(false)))
-            .collect();
-        self.need_update()
-    }
-
-    pub fn visible(self) -> Self {
-        self.perform_layout()
+    pub fn visible(mut self, visible: bool) -> Self {
+        if visible {
+            self.perform_layout()
+        } else {
+            self.windows = self.windows.into_iter()
+                .map(|(is_current, window)| (is_current, window.visible(false)))
+                .collect();
+            self.need_update()
+        }
     }
 
     pub fn get_name(&self) -> &str {
@@ -87,7 +87,7 @@ impl Workspace {
     }
 
     pub fn remove_window(mut self, window: WindowId) -> Self {
-        log::debug!("Removing window id {:?} from workspace", &window);
+        log::debug!("Removing window id {:?} from workspace {}", &window, self.get_name());
         let old_len = self.windows.len();
         self.windows = self.windows.remove_by(|w| w.deref() == &window);
         if old_len != self.windows.len() {
@@ -97,15 +97,14 @@ impl Workspace {
         }
     }
 
-    fn perform_layout(self) -> Self {
+    fn perform_layout(mut self) -> Self {
         if self.windows.is_empty() {
-            return self
+            return self;
         }
-        log::debug!("Updating layout for workspace {} using {:?}", &self.name, &self.layouts.get_focus().unwrap());
-        let handled_windows = self.layouts.get_focus().unwrap().handle_layout(&self.view, self.windows);
-        Self {
-            windows: handled_windows,
-            ..self
-        }.need_update()
+        let layout = self.layouts.get_current().unwrap();
+        log::debug!("Updating layout for workspace {} using {:?}", &self.name, &layout);
+        let handled_windows = layout.handle_layout(&self.view, self.windows);
+        self.windows = handled_windows;
+        self.need_update()
     }
 }

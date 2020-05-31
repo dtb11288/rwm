@@ -77,7 +77,7 @@ impl<I: Clone + Debug> Stack<I> {
         Self::default()
     }
 
-    pub fn update_focus<F: FnOnce(I) -> I>(mut self, replace: F) -> Self {
+    pub fn update_current<F: FnOnce(I) -> I>(mut self, replace: F) -> Self {
         if let Some(current) = self.current {
             let old_item = self.stack.remove(current);
             let new_item = replace(old_item);
@@ -86,7 +86,7 @@ impl<I: Clone + Debug> Stack<I> {
         self
     }
 
-    pub fn get_focus(&self) -> Option<&I> {
+    pub fn get_current(&self) -> Option<&I> {
         self.current.as_ref()
             .and_then(|current| self.stack.get(*current))
     }

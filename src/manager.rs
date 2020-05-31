@@ -14,16 +14,21 @@ impl Manager {
     }
 
     fn update(&self, state: &State) {
-        state.workspaces.iter()
-            .filter(|&w| w.is_changed())
-            .for_each(|workspace| {
-                log::debug!("Update workspace {:?}", workspace);
-                workspace.iter()
-                    .for_each(|window| {
-                        self.display.configure_window(window);
-                        self.display.set_visibility(&window, window.is_visible());
-                    })
-            });
+        if state.quit {
+            log::debug!("Quit");
+            self.display.quit()
+        } else {
+            state.workspaces.iter()
+                .filter(|&w| w.is_changed())
+                .for_each(|workspace| {
+                    log::debug!("Update workspace {:?}", workspace);
+                    workspace.iter()
+                        .for_each(|window| {
+                            self.display.configure_window(window);
+                            self.display.set_visibility(&window, window.is_visible());
+                        })
+                });
+        }
     }
 
     pub fn run(&self) {

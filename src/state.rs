@@ -4,10 +4,18 @@ use crate::config::Config;
 use crate::displays::Event;
 use crate::stack::Stack;
 use crate::layouts::LayoutType;
+use std::collections::HashMap;
+use crate::command::Command;
+use crate::keys::{KeyCombo, Key, KeyConvert, ModKey};
+use crate::keys::xcb_keys::{XcbKeyCombo, XcbKeyConvert};
+use std::rc::Rc;
 
+#[derive(Clone)]
 pub struct State {
+    pub quit: bool,
     pub view: Geometry,
     pub workspaces: Stack<Workspace>,
+    pub commands: Rc<HashMap<XcbKeyCombo, Command>>,
 }
 
 impl State {
@@ -17,17 +25,41 @@ impl State {
             .map(|name| Workspace::new(name.clone(), Stack::new(), layouts.clone(), view.clone()))
             .collect::<Vec<Workspace>>()
             .into();
-        Self { view, workspaces }
+
+        let mut commands = HashMap::new();
+        commands.insert(
+            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('p') }),
+            crate::command::spawn("dmenu_run".to_string())
+        );
+        commands.insert(
+            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('j') }),
+            crate::command::next_window()
+        );
+        commands.insert(
+            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('k') }),
+            crate::command::previous_window()
+        );
+        commands.insert(
+            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('q') }),
+            crate::command::quit()
+        );
+        for pos in b'1'..=b'9' {
+            let index = usize::from(pos - 49);
+            let pos = char::from(pos);
+            commands.insert(
+                XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key(pos as char) }),
+                crate::command::goto_workspace(index as usize)
+            );
+        }
+
+        Self { quit: false, view, workspaces, commands: Rc::new(commands) }
     }
 
-    pub fn reset(self) -> Self {
-        let workspaces = self.workspaces.into_iter()
+    pub fn reset(mut self) -> Self {
+        self.workspaces = self.workspaces.into_iter()
             .map(|(is_current, workspace)| (is_current, workspace.reset()))
             .collect();
-        Self {
-            workspaces,
-            ..self
-        }
+        self
     }
 
     pub fn handle_event(self, event: Event) -> Self {
@@ -46,72 +78,65 @@ impl State {
         }
     }
 
-    fn key_pressed(self, key: String) -> Self {
-        match key.as_str() {
-            "8 49" => {
-                std::process::Command::new("urxvt").spawn().ok();
-                self
-            },
-            "8 50" => {
-                self.next_workspace()
-            },
-            "8 51" => {
-                self.previous_workspace()
-            },
-            _ => self
+    fn key_pressed(self, key: XcbKeyCombo) -> Self {
+        if let Some(command) = self.commands.get(&key) {
+            command(&self)
+        } else {
+            self
         }
     }
 
-    fn next_workspace(self) -> Self {
-        let workspaces = self.workspaces
-            .update_focus(|workspace| workspace.invisible())
+    pub fn goto_workspace(mut self, position: usize) -> Self {
+        self.workspaces = self.workspaces
+            .update_current(|workspace| workspace.visible(false))
+            .set_current(position)
+            .update_current(|workspace| workspace.visible(true));
+        self
+    }
+
+    fn next_workspace(mut self) -> Self {
+        self.workspaces = self.workspaces
+            .update_current(|workspace| workspace.visible(false))
             .next()
-            .update_focus(|workspace| workspace.visible());
-        Self {
-            workspaces,
-            ..self
-        }
+            .update_current(|workspace| workspace.visible(true));
+        self
     }
 
-    fn previous_workspace(self) -> Self {
-        let workspaces = self.workspaces
-            .update_focus(|workspace| workspace.invisible())
+    fn previous_workspace(mut self) -> Self {
+        self.workspaces = self.workspaces
+            .update_current(|workspace| workspace.visible(false))
             .previous()
-            .update_focus(|workspace| workspace.visible());
-        Self {
-            workspaces,
-            ..self
-        }
-    }
-
-    fn next_window(mut self) -> Self {
-        self.workspaces = self.workspaces.update_focus(Workspace::next_window);
+            .update_current(|workspace| workspace.visible(true));
         self
     }
 
-    fn previous_window(mut self) -> Self {
-        self.workspaces = self.workspaces.update_focus(Workspace::previous_window);
+    pub fn next_window(mut self) -> Self {
+        self.workspaces = self.workspaces.update_current(Workspace::next_window);
         self
     }
 
-    fn add_window(self, window: WindowId, window_type: WindowType) -> Self {
+    pub fn previous_window(mut self) -> Self {
+        self.workspaces = self.workspaces.update_current(Workspace::previous_window);
+        self
+    }
+
+    pub fn add_window(mut self, window: WindowId, window_type: WindowType) -> Self {
         let window = Window::new(window, window_type).visible(true);
-        let workspaces = self.workspaces.update_focus(move |workspace| workspace.add_window(window));
-        Self {
-            workspaces,
-            ..self
-        }
+        self.workspaces = self.workspaces.update_current(move |workspace| workspace.add_window(window));
+        self
     }
 
-    fn remove_window(self, window: WindowId) -> Self {
-        let workspaces = self.workspaces.into_iter()
+    pub fn quit(mut self) -> Self {
+        self.quit = true;
+        self
+    }
+
+    pub fn remove_window(mut self, window: WindowId) -> Self {
+        self.workspaces = self.workspaces.into_iter()
             .map(|(is_current, workspace)| {
                 (is_current, workspace.remove_window(window.clone()))
             })
             .collect();
-        Self {
-            workspaces,
-            ..self
-        }
+        self
     }
 }

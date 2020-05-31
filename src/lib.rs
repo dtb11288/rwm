@@ -5,7 +5,7 @@ mod layouts;
 mod state;
 mod displays;
 mod stack;
-mod key;
+mod keys;
 mod command;
 pub mod config;
 pub mod manager;

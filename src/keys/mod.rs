@@ -1,14 +1,11 @@
+pub mod xcb_keys;
+
 pub trait KeyConvert {
-    type KeyType;
-    fn backward(&self, key: Self::KeyType) -> Key;
-    fn forward(&self, keys: Vec<Key>) -> Self::KeyType;
+    type KeyCombo;
+    fn convert(&self, key: KeyCombo) -> Self::KeyCombo;
 }
 
-pub enum Key {
-    ModKey(ModKey),
-    Key(String)
-}
-
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ModKey {
     Shift,
     Lock,
@@ -20,7 +17,11 @@ pub enum ModKey {
     Mod5,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Key(pub char);
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct KeyCombo {
-    mod_key: K,
-    key: K
+    pub mod_keys: Vec<ModKey>,
+    pub key: Key
 }

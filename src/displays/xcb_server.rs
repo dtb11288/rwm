@@ -4,9 +4,12 @@ use crate::window::{Window, WindowType, Geometry, WindowId};
 use std::rc::Rc;
 use xcb_util::ewmh;
 use xcb_util::keysyms::KeySymbols;
+use crate::keys::xcb_keys::XcbKeyCombo;
+use std::cell::RefCell;
 
 #[derive(Clone)]
 pub struct XcbDisplayServer {
+    stopped: Rc<RefCell<bool>>,
     root: xcb::Window,
     connection: Rc<ewmh::Connection>,
 }
@@ -15,6 +18,7 @@ impl Iterator for XcbDisplayServer {
     type Item = Event;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if *self.stopped.borrow_mut() { return None }
         self.connection.flush();
         self.connection.wait_for_event()
             .map(|event| self.match_event(event))
@@ -56,6 +60,10 @@ impl DisplayServer for XcbDisplayServer {
             xcb::unmap_window(&self.connection, window_id);
         }
     }
+
+    fn quit(&self) {
+        *self.stopped.borrow_mut() = true;
+    }
 }
 
 impl XcbDisplayServer {
@@ -83,6 +91,7 @@ impl XcbDisplayServer {
         }
 
         XcbDisplayServer {
+            stopped: Rc::new(RefCell::new(false)),
             root,
             connection: Rc::new(connection),
         }
@@ -98,8 +107,8 @@ impl XcbDisplayServer {
                 let key_symbols = KeySymbols::new(&self.connection);
                 let keysym = key_symbols.press_lookup_keysym(key_press, 0);
                 let mod_mask = u32::from(key_press.state());
-                // let key = KeyCombo { mod_mask, keysym };
-                Event::KeyPressed(format!("{} {}", mod_mask, keysym))
+                let key_combo = XcbKeyCombo { mod_mask, key: keysym };
+                Event::KeyPressed(key_combo)
             },
             xcb::MAP_REQUEST => {
                 let map_request: &xcb::MapRequestEvent = unsafe { xcb::cast_event(&event) };
