@@ -1,21 +1,23 @@
 use crate::displays::{DisplayServer, Event};
 use crate::config::Config;
-use crate::window::{Window, WindowType, Geometry, WindowId};
+use crate::window::{WindowType, Geometry, Window};
 use std::rc::Rc;
 use xcb_util::ewmh;
 use xcb_util::keysyms::KeySymbols;
 use crate::keys::xcb_keys::XcbKeyCombo;
 use std::cell::RefCell;
+use std::ops::Deref;
 
 #[derive(Clone)]
 pub struct XcbDisplayServer {
     stopped: Rc<RefCell<bool>>,
     root: xcb::Window,
     connection: Rc<ewmh::Connection>,
+    events: Rc<RefCell<Vec<Event<xcb::Window, XcbKeyCombo>>>>
 }
 
 impl Iterator for XcbDisplayServer {
-    type Item = Event;
+    type Item = Event<<Self as DisplayServer>::Window, <Self as DisplayServer>::KeyCombo>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if *self.stopped.borrow() { return None }
@@ -26,48 +28,10 @@ impl Iterator for XcbDisplayServer {
 }
 
 impl DisplayServer for XcbDisplayServer {
-    fn get_root_view(&self) -> Geometry {
-        let reply = xcb::get_geometry(&self.connection, self.root)
-            .get_reply()
-            .unwrap();
-        Geometry::new(0, 0, u32::from(reply.width()), u32::from(reply.height()))
-    }
+    type Window = xcb::Window;
+    type KeyCombo = XcbKeyCombo;
 
-    fn configure_window(&self, window: &Window) {
-        let view = window.get_view();
-        let values = [
-            (xcb::CONFIG_WINDOW_X as u16, view.position.x as u32),
-            (xcb::CONFIG_WINDOW_Y as u16, view.position.y as u32),
-            (xcb::CONFIG_WINDOW_WIDTH as u16, view.size.width),
-            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.size.height),
-        ];
-        let window_id = window.parse::<xcb::Window>().unwrap();
-        xcb::configure_window(&self.connection, window_id, &values);
-        let events = [(
-            xcb::CW_EVENT_MASK,
-            xcb::EVENT_MASK_BUTTON_PRESS |
-                xcb::EVENT_MASK_BUTTON_RELEASE |
-                xcb::EVENT_MASK_KEY_PRESS
-        )];
-        xcb::change_window_attributes(&self.connection, window_id, &events);
-    }
-
-    fn set_visibility(&self, window: &WindowId, show: bool) {
-        let window_id = window.parse::<xcb::Window>().unwrap();
-        if show {
-            xcb::map_window(&self.connection, window_id);
-        } else {
-            xcb::unmap_window(&self.connection, window_id);
-        }
-    }
-
-    fn quit(&self) {
-        *self.stopped.borrow_mut() = true;
-    }
-}
-
-impl XcbDisplayServer {
-    pub fn new(_config: &Config) -> Self {
+    fn new(_config: &Config) -> Self {
         let (connection, screen_num) = xcb::Connection::connect(None).unwrap();
         let connection = ewmh::Connection::connect(connection).map_err(|e| e.0).unwrap();
         let setup = connection.get_setup();
@@ -94,10 +58,51 @@ impl XcbDisplayServer {
             stopped: Rc::new(RefCell::new(false)),
             root,
             connection: Rc::new(connection),
+            events: Rc::new(RefCell::new(vec![]))
         }
     }
 
-    fn match_event(&self, event: xcb::GenericEvent) -> Event {
+    fn get_root_view(&self) -> Geometry {
+        let reply = xcb::get_geometry(&self.connection, self.root)
+            .get_reply()
+            .unwrap();
+        Geometry::new(0, 0, u32::from(reply.width()), u32::from(reply.height()))
+    }
+
+    fn configure_window(&self, window: &Window<xcb::Window>) {
+        let view = window.get_view();
+        let values = [
+            (xcb::CONFIG_WINDOW_X as u16, view.position.x as u32),
+            (xcb::CONFIG_WINDOW_Y as u16, view.position.y as u32),
+            (xcb::CONFIG_WINDOW_WIDTH as u16, view.size.width),
+            (xcb::CONFIG_WINDOW_HEIGHT as u16, view.size.height),
+        ];
+        let window_id = window.deref();
+        xcb::configure_window(&self.connection, *window_id, &values);
+        let events = [(
+            xcb::CW_EVENT_MASK,
+            xcb::EVENT_MASK_BUTTON_PRESS |
+                xcb::EVENT_MASK_BUTTON_RELEASE |
+                xcb::EVENT_MASK_KEY_PRESS
+        )];
+        xcb::change_window_attributes(&self.connection, *window_id, &events);
+    }
+
+    fn set_visibility(&self, window: &xcb::Window, show: bool) {
+        if show {
+            xcb::map_window(&self.connection, *window);
+        } else {
+            xcb::unmap_window(&self.connection, *window);
+        }
+    }
+
+    fn quit(&self) {
+        *self.stopped.borrow_mut() = true;
+    }
+}
+
+impl XcbDisplayServer {
+    fn match_event(&self, event: xcb::GenericEvent) -> Event<xcb::Window, XcbKeyCombo> {
         match event.response_type() {
             xcb::CONFIGURE_REQUEST => {
                 Event::Ignored
@@ -112,23 +117,23 @@ impl XcbDisplayServer {
             },
             xcb::MAP_REQUEST => {
                 let map_request: &xcb::MapRequestEvent = unsafe { xcb::cast_event(&event) };
-                Event::WindowAdded(map_request.window().to_string(), WindowType::Normal)
+                Event::WindowAdded(map_request.window(), WindowType::Normal)
             },
             xcb::UNMAP_NOTIFY => {
                 let unmap_notify: &xcb::UnmapNotifyEvent = unsafe { xcb::cast_event(&event) };
                 if unmap_notify.event() == self.root {
-                    Event::WindowRemoved(unmap_notify.event().to_string())
+                    Event::WindowRemoved(unmap_notify.event())
                 } else {
                     Event::Ignored
                 }
             },
             xcb::DESTROY_NOTIFY => {
                 let destroy_event: &xcb::DestroyNotifyEvent = unsafe { xcb::cast_event(&event) };
-                Event::WindowRemoved(destroy_event.window().to_string())
+                Event::WindowRemoved(destroy_event.window())
             },
             xcb::ENTER_NOTIFY => {
                 let enter_event: &xcb::EnterNotifyEvent = unsafe { xcb::cast_event(&event) };
-                Event::WindowFocused(enter_event.event().to_string())
+                Event::WindowFocused(enter_event.event())
             },
             _ => Event::Ignored,
         }

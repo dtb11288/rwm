@@ -1,21 +1,25 @@
 use crate::config::Config;
 use crate::state::State;
 use crate::displays::DisplayServer;
+use std::collections::HashMap;
+use crate::command::Command;
 
-pub struct Manager {
+pub struct Manager<D: DisplayServer> {
     config: Config,
-    display: Box<dyn DisplayServer>,
+    display: D,
+    handlers: HashMap<D::KeyCombo, Command>,
 }
 
-impl Manager {
+impl<D: DisplayServer> Manager<D> {
     pub fn new(config: Config) -> Self {
-        let display = config.display.init(&config);
-        Manager { config, display }
+        let display = D::new(&config);
+        let handlers = Command::new(&config);
+        Manager { config, display, handlers }
     }
 
-    fn update(&self, state: &State) {
+    fn update(&self, state: &State<D::Window>) {
         if state.quit {
-            log::debug!("Quit");
+            log::debug!("Close WM ...");
             self.display.quit()
         } else {
             state.workspaces.iter()
@@ -37,7 +41,7 @@ impl Manager {
         self.display.clone().into_iter()
             .fold(state, move |state, event| {
                 log::debug!("Received event {:?}", &event);
-                let state = state.handle_event(event);
+                let state = state.handle_event(event, &self.handlers);
                 self.update(&state);
                 state.reset()
             });

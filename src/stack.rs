@@ -3,7 +3,7 @@ use std::iter::FromIterator;
 use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Stack<I: Clone + Debug> {
+pub struct Stack<I> {
     current: Option<usize>,
     stack: Vec<I>
 }
@@ -14,7 +14,7 @@ pub struct StackIntoIter<I> {
     iter: std::vec::IntoIter<I>
 }
 
-impl<I: Clone + Debug> Default for Stack<I> {
+impl<I> Default for Stack<I> {
     fn default() -> Self {
         Self {
             current: None,
@@ -23,14 +23,14 @@ impl<I: Clone + Debug> Default for Stack<I> {
     }
 }
 
-impl<I: Clone + Debug> From<Vec<I>> for Stack<I> {
+impl<I> From<Vec<I>> for Stack<I> {
     fn from(stack: Vec<I>) -> Self {
         if stack.is_empty() { return Stack::default() }
         Self { current: Some(0), stack }
     }
 }
 
-impl<I: Clone + Debug> IntoIterator for Stack<I> {
+impl<I> IntoIterator for Stack<I> {
     type Item = (bool, I);
     type IntoIter = StackIntoIter<I>;
 
@@ -39,7 +39,7 @@ impl<I: Clone + Debug> IntoIterator for Stack<I> {
     }
 }
 
-impl<I: Clone + Debug> Iterator for StackIntoIter<I> {
+impl<I> Iterator for StackIntoIter<I> {
     type Item = (bool, I);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -49,7 +49,7 @@ impl<I: Clone + Debug> Iterator for StackIntoIter<I> {
     }
 }
 
-impl<I: Clone + Debug> Deref for Stack<I> {
+impl<I> Deref for Stack<I> {
     type Target = Vec<I>;
 
     fn deref(&self) -> &Self::Target {
@@ -57,7 +57,7 @@ impl<I: Clone + Debug> Deref for Stack<I> {
     }
 }
 
-impl<I: Clone + Debug> FromIterator<(bool, I)> for Stack<I> {
+impl<I> FromIterator<(bool, I)> for Stack<I> {
     fn from_iter<T: IntoIterator<Item=(bool, I)>>(iter: T) -> Self {
         let mut count = 0;
         let mut current = None;
@@ -72,7 +72,7 @@ impl<I: Clone + Debug> FromIterator<(bool, I)> for Stack<I> {
     }
 }
 
-impl<I: Clone + Debug> Stack<I> {
+impl<I> Stack<I> {
     pub fn new() -> Self {
         Self::default()
     }
@@ -99,8 +99,9 @@ impl<I: Clone + Debug> Stack<I> {
     }
 
     pub fn set_current(mut self, index: usize) -> Self {
-        assert!(self.stack.len() > index);
-        self.current = Some(index);
+        if self.stack.len() > index {
+            self.current = Some(index);
+        }
         self
     }
 

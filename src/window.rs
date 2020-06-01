@@ -19,10 +19,8 @@ pub enum WindowType {
     Normal,
 }
 
-pub type WindowId = String;
-
-impl Deref for Window {
-    type Target = WindowId;
+impl<W> Deref for Window<W> {
+    type Target = W;
 
     fn deref(&self) -> &Self::Target {
         &self.id
@@ -30,14 +28,14 @@ impl Deref for Window {
 }
 
 #[derive(Clone)]
-pub struct Window {
-    id: WindowId,
+pub struct Window<W> {
+    id: W,
     window_type: WindowType,
     view: Option<Geometry>,
     visible: bool,
 }
 
-impl PartialEq for Window {
+impl<W: Eq> PartialEq for Window<W> {
     fn eq(&self, other: &Self) -> bool {
         self == other
     }
@@ -61,12 +59,12 @@ impl fmt::Debug for Geometry {
     }
 }
 
-impl fmt::Debug for Window {
+impl<W: Debug> fmt::Debug for Window<W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.view.is_none() {
-            write!(f, "({} - {:?} - {})", &self.id, &self.window_type, "Unknown")
+            write!(f, "({:?} - {:?} - {})", &self.id, &self.window_type, "Unknown")
         } else {
-            write!(f, "({} - {:?} - {:?})", &self.id, &self.window_type, self.view.as_ref().unwrap())
+            write!(f, "({:?} - {:?} - {:?})", &self.id, &self.window_type, self.view.as_ref().unwrap())
         }
     }
 }
@@ -98,8 +96,8 @@ impl Geometry {
     }
 }
 
-impl Window {
-    pub fn new(id: WindowId, window_type: WindowType) -> Self {
+impl<W> Window<W> {
+    pub fn new(id: W, window_type: WindowType) -> Self {
         Window { id, window_type, view: None, visible: false }
     }
 

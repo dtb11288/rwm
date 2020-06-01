@@ -1,34 +1,61 @@
 use crate::state::State;
+use std::fmt::Debug;
+use crate::keys::{KeyCombo, Key, ModKey};
+use std::hash::Hash;
+use crate::config::Config;
+use std::collections::HashMap;
 
-pub type Command = Box<dyn Fn(State) -> State>;
-
-pub fn spawn(command: String) -> Command {
-    Box::new(move |state| {
-        std::process::Command::new(command.as_str()).spawn().ok();
-        state
-    })
+pub enum Command {
+    Spawn(String),
+    NextWindow,
+    PreviousWindow,
+    GoToWorkspace(usize),
+    Quit,
 }
 
-pub fn next_window() -> Command {
-    Box::new(move |state| {
-        state.next_window()
-    })
-}
-
-pub fn previous_window() -> Command {
-    Box::new(move |state| {
-        state.previous_window()
-    })
-}
-
-pub fn goto_workspace(position: usize) -> Command {
-    Box::new(move |state| {
-        state.goto_workspace(position)
-    })
-}
-
-pub fn quit() -> Command {
-    Box::new(move |state| {
-        state.quit()
-    })
+impl Command {
+    pub fn new<K: From<KeyCombo> + Hash + Eq + Debug>(config: &Config) -> HashMap<K, Self> {
+        let mut commands = HashMap::new();
+        commands.insert(
+            KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('p') }.into(),
+            Command::Spawn("dmenu_run".to_string())
+        );
+        commands.insert(
+            KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('j') }.into(),
+            Command::NextWindow
+        );
+        commands.insert(
+            KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('k') }.into(),
+            Command::PreviousWindow
+        );
+        commands.insert(
+            KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('q') }.into(),
+            Command::Quit
+        );
+        commands.insert(
+            KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('u') }.into(),
+            Command::Spawn("urxvt".to_string())
+        );
+        for pos in b'1'..=b'9' {
+            let index = usize::from(pos - 49);
+            let pos = char::from(pos);
+            commands.insert(
+                KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key(pos as char) }.into(),
+                Command::GoToWorkspace(index)
+            );
+        }
+        commands
+    }
+    pub fn execute<W: Debug + Clone + Eq>(&self, state: State<W>) -> State<W> {
+        match self {
+            Command::Spawn(command) => {
+                std::process::Command::new(command.as_str()).spawn().ok();
+                state
+            },
+            Command::NextWindow => state.next_window(),
+            Command::PreviousWindow => state.previous_window(),
+            Command::GoToWorkspace(index) => state.goto_workspace(*index),
+            Command::Quit => state.quit()
+        }
+    }
 }

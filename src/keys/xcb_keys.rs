@@ -1,6 +1,4 @@
-use crate::keys::{KeyConvert, Key, KeyCombo, ModKey};
-
-pub struct XcbKeyConvert;
+use crate::keys::{Key, KeyCombo, ModKey};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct XcbKeyCombo {
@@ -29,10 +27,8 @@ impl From<Key> for u32 {
     }
 }
 
-impl KeyConvert for XcbKeyConvert {
-    type KeyCombo = XcbKeyCombo;
-
-    fn convert(&self, key: KeyCombo) -> Self::KeyCombo {
+impl From<KeyCombo> for XcbKeyCombo {
+    fn from(key: KeyCombo) -> Self {
         let mod_mask = key.mod_keys
             .into_iter()
             .fold(0, |mask, mod_key| {

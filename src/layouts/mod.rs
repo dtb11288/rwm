@@ -1,43 +1,31 @@
-use crate::layouts::tall::Tall;
-use crate::layouts::fullscreen::FullScreen;
 use crate::window::{Window, Geometry};
 use crate::stack::Stack;
+use std::fmt::Debug;
 
 mod fullscreen;
 mod tall;
 
-trait Layout {
-    fn handle_layout(&self, view: &Geometry, windows: Stack<Window>) -> Stack<Window>;
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum LayoutType {
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Layout {
     Tall,
     FullScreen,
 }
 
-impl LayoutType {
-    pub fn handle_layout(&self, view: &Geometry, windows: Stack<Window>) -> Stack<Window> {
-        let layout: &dyn Layout = self.into();
-        Layout::handle_layout(layout, view, windows)
-    }
-}
-
-impl From<&str> for LayoutType {
-    fn from(display: &str) -> Self {
-        match display {
-            "tall" => LayoutType::Tall,
-            "fullscreen" => LayoutType::FullScreen,
-            _ => panic!("Invalid layout {}", display)
+impl Layout {
+    pub fn handle_layout<W>(&self, view: &Geometry, windows: Stack<Window<W>>) -> Stack<Window<W>> {
+        match self {
+            Layout::Tall => tall::handle_layout(view, windows),
+            Layout::FullScreen => fullscreen::handle_layout(view, windows),
         }
     }
 }
 
-impl From<&LayoutType> for &dyn Layout {
-    fn from(layout_type: &LayoutType) -> Self {
-        match layout_type {
-            LayoutType::Tall => &Tall,
-            LayoutType::FullScreen => &FullScreen,
+impl From<&str> for Layout {
+    fn from(display: &str) -> Self {
+        match display {
+            "tall" => Layout::Tall,
+            "fullscreen" => Layout::FullScreen,
+            _ => panic!("Invalid layout {}", display)
         }
     }
 }

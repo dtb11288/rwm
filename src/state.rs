@@ -1,62 +1,30 @@
 use crate::workspace::Workspace;
-use crate::window::{WindowType, Window, Geometry, WindowId};
+use crate::window::{WindowType, Window, Geometry};
 use crate::config::Config;
 use crate::displays::Event;
 use crate::stack::Stack;
-use crate::layouts::LayoutType;
+use crate::layouts::Layout;
+use crate::keys::KeyCombo;
+use std::hash::Hash;
+use std::fmt::Debug;
 use std::collections::HashMap;
 use crate::command::Command;
-use crate::keys::{KeyCombo, Key, KeyConvert, ModKey};
-use crate::keys::xcb_keys::{XcbKeyCombo, XcbKeyConvert};
-use std::rc::Rc;
-use std::cell::RefCell;
 
-pub struct State {
+pub struct State<W> {
     pub quit: bool,
     pub view: Geometry,
-    pub workspaces: Stack<Workspace>,
-    commands: Rc<RefCell<HashMap<XcbKeyCombo, Command>>>,
+    pub workspaces: Stack<Workspace<W>>,
 }
 
-impl State {
+impl<W: Debug + Clone + Eq> State<W> {
     pub fn new(config: &Config, view: Geometry) -> Self {
-        let layouts: Stack<LayoutType> = config.layouts.clone().into();
+        let layouts: Stack<Layout> = config.layouts.clone().into();
         let workspaces = config.workspaces.iter()
             .map(|name| Workspace::new(name.clone(), Stack::new(), layouts.clone(), view.clone()))
-            .collect::<Vec<Workspace>>()
+            .collect::<Vec<Workspace<W>>>()
             .into();
 
-        let mut commands = HashMap::new();
-        commands.insert(
-            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('p') }),
-            crate::command::spawn("dmenu_run".to_string())
-        );
-        commands.insert(
-            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('j') }),
-            crate::command::next_window()
-        );
-        commands.insert(
-            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key('k') }),
-            crate::command::previous_window()
-        );
-        commands.insert(
-            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('q') }),
-            crate::command::quit()
-        );
-        commands.insert(
-            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('u') }),
-            crate::command::spawn("urxvt".to_string())
-        );
-        for pos in b'1'..=b'9' {
-            let index = usize::from(pos - 49);
-            let pos = char::from(pos);
-            commands.insert(
-                XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone()], key: Key(pos as char) }),
-                crate::command::goto_workspace(index as usize)
-            );
-        }
-
-        Self { quit: false, view, workspaces, commands: Rc::new(RefCell::new(commands)) }
+        Self { quit: false, view, workspaces }
     }
 
     pub fn reset(mut self) -> Self {
@@ -66,7 +34,7 @@ impl State {
         self
     }
 
-    pub fn handle_event(self, event: Event) -> Self {
+    pub fn handle_event<K: From<KeyCombo> + Hash + Eq + Debug>(self, event: Event<W, K>, handlers: &HashMap<K, Command>) -> Self {
         log::debug!("Handling event {:?}", event);
         match event {
             Event::WindowAdded(window, window_type) => {
@@ -76,18 +44,15 @@ impl State {
                 self.remove_window(window)
             },
             Event::KeyPressed(key) => {
-                self.key_pressed(key)
+                self.key_pressed(key, handlers)
             },
             _ => self
         }
     }
 
-    fn key_pressed(self, key: XcbKeyCombo) -> Self {
-        let command = self.commands.borrow_mut().remove(&key);
-        if let Some(command) = command {
-            let state = command(self);
-            state.commands.borrow_mut().insert(key, command);
-            state
+    fn key_pressed<K: From<KeyCombo> + Hash + Eq + Debug>(self, key: K, handlers: &HashMap<K, Command>) -> Self {
+        if let Some(command) = handlers.get(&key) {
+            command.execute(self)
         } else {
             self
         }
@@ -127,7 +92,7 @@ impl State {
         self
     }
 
-    pub fn add_window(mut self, window: WindowId, window_type: WindowType) -> Self {
+    pub fn add_window(mut self, window: W, window_type: WindowType) -> Self {
         let window = Window::new(window, window_type).visible(true);
         self.workspaces = self.workspaces.update_current(move |workspace| workspace.add_window(window));
         self
@@ -138,7 +103,7 @@ impl State {
         self
     }
 
-    pub fn remove_window(mut self, window: WindowId) -> Self {
+    pub fn remove_window(mut self, window: W) -> Self {
         self.workspaces = self.workspaces.into_iter()
             .map(|(is_current, workspace)| {
                 (is_current, workspace.remove_window(window.clone()))

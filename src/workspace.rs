@@ -1,40 +1,40 @@
-use crate::layouts::LayoutType;
-use crate::window::{Window, Geometry, WindowId};
-use std::fmt;
+use crate::layouts::Layout;
+use crate::window::{Window, Geometry};
 use std::ops::Deref;
 use crate::stack::Stack;
+use std::fmt::{self, Debug};
 
-impl PartialEq for Workspace {
+impl<W: Debug + Eq + Clone> PartialEq for Workspace<W> {
     fn eq(&self, other: &Self) -> bool {
         self.get_name() == other.get_name()
     }
 }
 
-impl fmt::Debug for Workspace {
+impl<W: Debug + Eq + Clone> Debug for Workspace<W> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{} - {:?} - {:?} - {:?}]", self.get_name(), self.layouts.get_current().unwrap(), &self.view, &self.windows)
     }
 }
 
 #[derive(Clone)]
-pub struct Workspace {
+pub struct Workspace<W> {
     name: String,
     is_changed: bool,
     view: Geometry,
-    windows: Stack<Window>,
-    layouts: Stack<LayoutType>,
+    windows: Stack<Window<W>>,
+    layouts: Stack<Layout>,
 }
 
-impl Deref for Workspace {
-    type Target = Stack<Window>;
+impl<W> Deref for Workspace<W> {
+    type Target = Stack<Window<W>>;
 
     fn deref(&self) -> &Self::Target {
         &self.windows
     }
 }
 
-impl Workspace {
-    pub fn new(name: String, windows: Stack<Window>, layouts: Stack<LayoutType>, view: Geometry) -> Self {
+impl<W: Debug + Eq + Clone> Workspace<W> {
+    pub fn new(name: String, windows: Stack<Window<W>>, layouts: Stack<Layout>, view: Geometry) -> Self {
         let workspace = Self { name, windows, layouts, is_changed: false, view };
         workspace.perform_layout()
     }
@@ -80,13 +80,13 @@ impl Workspace {
         self.perform_layout()
     }
 
-    pub fn add_window(mut self, window: Window) -> Self {
+    pub fn add_window(mut self, window: Window<W>) -> Self {
         log::debug!("Adding window id {:?} to workspace {}", &window.deref(), self.get_name());
         self.windows = self.windows.add(window);
         self.perform_layout()
     }
 
-    pub fn remove_window(mut self, window: WindowId) -> Self {
+    pub fn remove_window(mut self, window: W) -> Self {
         log::debug!("Removing window id {:?} from workspace {}", &window, self.get_name());
         let old_len = self.windows.len();
         self.windows = self.windows.remove_by(|w| w.deref() == &window);
