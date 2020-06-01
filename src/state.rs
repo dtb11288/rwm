@@ -9,13 +9,13 @@ use crate::command::Command;
 use crate::keys::{KeyCombo, Key, KeyConvert, ModKey};
 use crate::keys::xcb_keys::{XcbKeyCombo, XcbKeyConvert};
 use std::rc::Rc;
+use std::cell::RefCell;
 
-#[derive(Clone)]
 pub struct State {
     pub quit: bool,
     pub view: Geometry,
     pub workspaces: Stack<Workspace>,
-    pub commands: Rc<HashMap<XcbKeyCombo, Command>>,
+    commands: Rc<RefCell<HashMap<XcbKeyCombo, Command>>>,
 }
 
 impl State {
@@ -43,6 +43,10 @@ impl State {
             XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('q') }),
             crate::command::quit()
         );
+        commands.insert(
+            XcbKeyConvert.convert(KeyCombo { mod_keys: vec![config.mod_key.clone(), ModKey::Shift], key: Key('u') }),
+            crate::command::spawn("urxvt".to_string())
+        );
         for pos in b'1'..=b'9' {
             let index = usize::from(pos - 49);
             let pos = char::from(pos);
@@ -52,7 +56,7 @@ impl State {
             );
         }
 
-        Self { quit: false, view, workspaces, commands: Rc::new(commands) }
+        Self { quit: false, view, workspaces, commands: Rc::new(RefCell::new(commands)) }
     }
 
     pub fn reset(mut self) -> Self {
@@ -79,8 +83,11 @@ impl State {
     }
 
     fn key_pressed(self, key: XcbKeyCombo) -> Self {
-        if let Some(command) = self.commands.get(&key) {
-            command(&self)
+        let command = self.commands.borrow_mut().remove(&key);
+        if let Some(command) = command {
+            let state = command(self);
+            state.commands.borrow_mut().insert(key, command);
+            state
         } else {
             self
         }

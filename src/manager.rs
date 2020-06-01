@@ -31,7 +31,7 @@ impl Manager {
         }
     }
 
-    pub fn run(&self) {
+    pub fn run(self) {
         log::info!("Start WM ...");
         let state = State::new(&self.config, self.display.get_root_view());
         self.display.clone().into_iter()

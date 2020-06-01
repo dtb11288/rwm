@@ -18,7 +18,7 @@ impl Iterator for XcbDisplayServer {
     type Item = Event;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if *self.stopped.borrow_mut() { return None }
+        if *self.stopped.borrow() { return None }
         self.connection.flush();
         self.connection.wait_for_event()
             .map(|event| self.match_event(event))
