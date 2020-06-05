@@ -13,7 +13,7 @@ impl Config {
         Self {
             mod_key: ModKey::Mod4,
             layouts: vec!["tall".into(), "fullscreen".into()],
-            workspaces: vec!["1", "2", "3"].into_iter().map(String::from).collect(),
+            workspaces: (1..9).into_iter().map(|i| i.to_string()).collect(),
         }
     }
 }

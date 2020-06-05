@@ -12,3 +12,4 @@ xcb-util = { version = "0.3", features = ["keysyms", "ewmh", "cursor"] }
 log = "0.4"
 simple_logger = "1.6"
 futures = "0.3"
+tokio = { version = "0.2.21", features = ["macros"] }

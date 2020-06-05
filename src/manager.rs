@@ -36,15 +36,16 @@ impl<D: DisplayServer> Manager<D> {
         }
     }
 
-    pub fn run(self) {
+    pub async fn stream(self) -> State<D::Window> {
         log::info!("Start WM ...");
         let state = State::new(&self.config, self.display.get_root_view());
-        futures::executor::block_on(self.display.clone()
-            .fold(state, move |state, event| {
+        self.display.clone()
+            .fold(state, |state, event| async {
                 log::debug!("Received event {:?}", &event);
                 let state = state.handle_event(event, &self.handlers);
                 self.update(&state);
-                async { state.reset() }
-            }));
+                state.reset()
+            })
+            .await
     }
 }

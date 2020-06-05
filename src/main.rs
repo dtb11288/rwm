@@ -3,7 +3,8 @@ use rwm::manager::Manager;
 use simple_logger;
 use rwm::displays::xcb_server::XcbDisplayServer;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     simple_logger::init().unwrap();
-    Manager::<XcbDisplayServer>::new(Config::new()).run()
+    Manager::<XcbDisplayServer>::new(Config::new()).stream().await;
 }
