@@ -7,23 +7,34 @@ use xcb_util::keysyms::KeySymbols;
 use crate::keys::xcb_keys::XcbKeyCombo;
 use std::cell::RefCell;
 use std::ops::Deref;
+use futures::Stream;
+use futures::task::{Context, Poll};
+use std::pin::Pin;
 
 #[derive(Clone)]
 pub struct XcbDisplayServer {
-    stopped: Rc<RefCell<bool>>,
     root: xcb::Window,
     connection: Rc<ewmh::Connection>,
-    events: Rc<RefCell<Vec<Event<xcb::Window, XcbKeyCombo>>>>
+    events: Rc<RefCell<Vec<Event<xcb::Window, XcbKeyCombo>>>>,
 }
 
-impl Iterator for XcbDisplayServer {
-    type Item = Event<<Self as DisplayServer>::Window, <Self as DisplayServer>::KeyCombo>;
+impl Stream for XcbDisplayServer {
+    type Item = Event<xcb::Window, XcbKeyCombo>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        if *self.stopped.borrow() { return None }
+    fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.connection.flush();
-        self.connection.wait_for_event()
-            .map(|event| self.match_event(event))
+        let mut events = self.events.borrow_mut();
+        if events.len() == 0 {
+            Poll::Ready(self.connection.wait_for_event()
+                .map(|event| self.match_event(event)))
+        } else {
+            let event = events.remove(0);
+            if event == Event::DisplayEnded { return Poll::Ready(None) }
+            if let Some(event) = self.connection.poll_for_event() {
+                events.push(self.match_event(event));
+            };
+            Poll::Ready(Some(event))
+        }
     }
 }
 
@@ -55,10 +66,9 @@ impl DisplayServer for XcbDisplayServer {
         }
 
         XcbDisplayServer {
-            stopped: Rc::new(RefCell::new(false)),
             root,
             connection: Rc::new(connection),
-            events: Rc::new(RefCell::new(vec![]))
+            events: Rc::new(RefCell::new(vec![Event::DisplayInited])),
         }
     }
 
@@ -97,7 +107,7 @@ impl DisplayServer for XcbDisplayServer {
     }
 
     fn quit(&self) {
-        *self.stopped.borrow_mut() = true;
+        self.events.borrow_mut().push(Event::DisplayEnded)
     }
 }
 
@@ -106,7 +116,7 @@ impl XcbDisplayServer {
         match event.response_type() {
             xcb::CONFIGURE_REQUEST => {
                 Event::Ignored
-            },
+            }
             xcb::KEY_PRESS => {
                 let key_press: &xcb::KeyPressEvent = unsafe { xcb::cast_event(&event) };
                 let key_symbols = KeySymbols::new(&self.connection);
@@ -114,11 +124,11 @@ impl XcbDisplayServer {
                 let mod_mask = u32::from(key_press.state());
                 let key_combo = XcbKeyCombo { mod_mask, key: keysym };
                 Event::KeyPressed(key_combo)
-            },
+            }
             xcb::MAP_REQUEST => {
                 let map_request: &xcb::MapRequestEvent = unsafe { xcb::cast_event(&event) };
                 Event::WindowAdded(map_request.window(), WindowType::Normal)
-            },
+            }
             xcb::UNMAP_NOTIFY => {
                 let unmap_notify: &xcb::UnmapNotifyEvent = unsafe { xcb::cast_event(&event) };
                 if unmap_notify.event() == self.root {
@@ -126,15 +136,15 @@ impl XcbDisplayServer {
                 } else {
                     Event::Ignored
                 }
-            },
+            }
             xcb::DESTROY_NOTIFY => {
                 let destroy_event: &xcb::DestroyNotifyEvent = unsafe { xcb::cast_event(&event) };
                 Event::WindowRemoved(destroy_event.window())
-            },
+            }
             xcb::ENTER_NOTIFY => {
                 let enter_event: &xcb::EnterNotifyEvent = unsafe { xcb::cast_event(&event) };
                 Event::WindowFocused(enter_event.event())
-            },
+            }
             _ => Event::Ignored,
         }
     }

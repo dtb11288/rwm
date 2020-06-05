@@ -9,11 +9,13 @@ use std::hash::Hash;
 use std::fmt::Debug;
 use std::collections::HashMap;
 use crate::command::Command;
+use crate::screen::Screen;
 
 pub struct State<W> {
     pub quit: bool,
     pub view: Geometry,
     pub workspaces: Stack<Workspace<W>>,
+    pub screen: Stack<Screen>,
 }
 
 impl<W: Debug + Clone + Eq> State<W> {
@@ -24,7 +26,7 @@ impl<W: Debug + Clone + Eq> State<W> {
             .collect::<Vec<Workspace<W>>>()
             .into();
 
-        Self { quit: false, view, workspaces }
+        Self { quit: false, view, workspaces, screen: Stack::new() }
     }
 
     pub fn reset(mut self) -> Self {

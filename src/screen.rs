@@ -1,6 +1,6 @@
 use crate::window::Geometry;
 
 pub struct Screen {
-    workspace: String,
+    workspace: usize,
     view: Geometry,
 }

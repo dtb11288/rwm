@@ -1,7 +1,7 @@
 use core::fmt::{self, Debug};
 use std::ops::Deref;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum WindowType {
     Desktop,
     Dock,

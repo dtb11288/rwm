@@ -3,6 +3,7 @@ use crate::state::State;
 use crate::displays::DisplayServer;
 use std::collections::HashMap;
 use crate::command::Command;
+use futures::StreamExt;
 
 pub struct Manager<D: DisplayServer> {
     config: Config,
@@ -38,12 +39,12 @@ impl<D: DisplayServer> Manager<D> {
     pub fn run(self) {
         log::info!("Start WM ...");
         let state = State::new(&self.config, self.display.get_root_view());
-        self.display.clone().into_iter()
+        futures::executor::block_on(self.display.clone()
             .fold(state, move |state, event| {
                 log::debug!("Received event {:?}", &event);
                 let state = state.handle_event(event, &self.handlers);
                 self.update(&state);
-                state.reset()
-            });
+                async { state.reset() }
+            }));
     }
 }
