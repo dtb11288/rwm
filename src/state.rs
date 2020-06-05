@@ -1,5 +1,5 @@
 use crate::workspace::Workspace;
-use crate::window::{WindowType, Window, Geometry};
+use crate::window::{WindowType, Window};
 use crate::config::Config;
 use crate::displays::Event;
 use crate::stack::Stack;
@@ -13,20 +13,19 @@ use crate::screen::Screen;
 
 pub struct State<W> {
     pub quit: bool,
-    pub view: Geometry,
     pub workspaces: Stack<Workspace<W>>,
     pub screen: Stack<Screen>,
 }
 
 impl<W: Debug + Clone + Eq> State<W> {
-    pub fn new(config: &Config, view: Geometry) -> Self {
+    pub fn new(config: &Config) -> Self {
         let layouts: Stack<Layout> = config.layouts.clone().into();
         let workspaces = config.workspaces.iter()
-            .map(|name| Workspace::new(name.clone(), Stack::new(), layouts.clone(), view.clone()))
+            .map(|name| Workspace::new(name.clone(), Stack::new(), layouts.clone()))
             .collect::<Vec<Workspace<W>>>()
             .into();
 
-        Self { quit: false, view, workspaces, screen: Stack::new() }
+        Self { quit: false, workspaces, screen: Stack::new() }
     }
 
     pub fn reset(mut self) -> Self {

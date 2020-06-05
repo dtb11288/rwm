@@ -20,7 +20,7 @@ impl<W: Debug + Eq + Clone> Debug for Workspace<W> {
 pub struct Workspace<W> {
     name: String,
     is_changed: bool,
-    view: Geometry,
+    view: Option<Geometry>,
     windows: Stack<Window<W>>,
     layouts: Stack<Layout>,
 }
@@ -34,8 +34,8 @@ impl<W> Deref for Workspace<W> {
 }
 
 impl<W: Debug + Eq + Clone> Workspace<W> {
-    pub fn new(name: String, windows: Stack<Window<W>>, layouts: Stack<Layout>, view: Geometry) -> Self {
-        let workspace = Self { name, windows, layouts, is_changed: false, view };
+    pub fn new(name: String, windows: Stack<Window<W>>, layouts: Stack<Layout>) -> Self {
+        let workspace = Self { name, windows, layouts, is_changed: false, view: None };
         workspace.perform_layout()
     }
 
@@ -98,12 +98,12 @@ impl<W: Debug + Eq + Clone> Workspace<W> {
     }
 
     fn perform_layout(mut self) -> Self {
-        if self.windows.is_empty() {
+        if self.windows.is_empty() || self.view.is_none() {
             return self;
         }
         let layout = self.layouts.get_current().unwrap();
         log::debug!("Updating layout for workspace {} using {:?}", &self.name, &layout);
-        let handled_windows = layout.handle_layout(&self.view, self.windows);
+        let handled_windows = layout.handle_layout(&self.view.as_ref().unwrap(), self.windows);
         self.windows = handled_windows;
         self.need_update()
     }

@@ -38,7 +38,7 @@ impl<D: DisplayServer> Manager<D> {
 
     pub async fn stream(self) -> State<D::Window> {
         log::info!("Start WM ...");
-        let state = State::new(&self.config, self.display.get_root_view());
+        let state = State::new(&self.config);
         self.display.clone()
             .fold(state, |state, event| async {
                 log::debug!("Received event {:?}", &event);

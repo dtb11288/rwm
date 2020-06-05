@@ -25,8 +25,10 @@ impl Stream for XcbDisplayServer {
         self.connection.flush();
         let mut events = self.events.borrow_mut();
         if events.len() == 0 {
-            Poll::Ready(self.connection.wait_for_event()
-                .map(|event| self.match_event(event)))
+            match self.connection.wait_for_event() {
+                Some(event) => Poll::Ready(Some(self.match_event(event))),
+                None => Poll::Pending,
+            }
         } else {
             let event = events.remove(0);
             if event == Event::DisplayEnded { return Poll::Ready(None) }
