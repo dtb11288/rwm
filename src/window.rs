@@ -69,19 +69,19 @@ impl<W: Debug> fmt::Debug for Window<W> {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct Geometry {
     pub size: Size,
     pub position: Position,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct Size {
     pub width: u32,
     pub height: u32,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct Position {
     pub x: i32,
     pub y: i32,

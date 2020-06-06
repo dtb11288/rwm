@@ -133,10 +133,10 @@ mod stack_tests {
 
     #[test]
     fn test() {
-        let stack = Stack::new();
-        let stack = stack.add(1);
-        let stack = stack.add(2);
-        let stack = stack.add(3);
+        let stack = Stack::new()
+            .add(1)
+            .add(2)
+            .add(3);
         let stack = stack.into_iter()
             .collect::<Stack<i32>>();
         let expected: Stack<i32> = vec![3, 2, 1].into();

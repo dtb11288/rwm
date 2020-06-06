@@ -1,5 +1,5 @@
 use crate::workspace::Workspace;
-use crate::window::{WindowType, Window};
+use crate::window::{WindowType, Window, Geometry};
 use crate::config::Config;
 use crate::displays::Event;
 use crate::stack::Stack;
@@ -14,7 +14,7 @@ use crate::screen::Screen;
 pub struct State<W> {
     pub quit: bool,
     pub workspaces: Stack<Workspace<W>>,
-    pub screen: Stack<Screen>,
+    pub screens: Stack<Screen<W>>,
 }
 
 impl<W: Debug + Clone + Eq> State<W> {
@@ -25,7 +25,7 @@ impl<W: Debug + Clone + Eq> State<W> {
             .collect::<Vec<Workspace<W>>>()
             .into();
 
-        Self { quit: false, workspaces, screen: Stack::new() }
+        Self { quit: false, workspaces, screens: Stack::new() }
     }
 
     pub fn reset(mut self) -> Self {
@@ -47,6 +47,9 @@ impl<W: Debug + Clone + Eq> State<W> {
             Event::KeyPressed(key) => {
                 self.key_pressed(key, handlers)
             },
+            Event::ScreenAdded(window, view) => {
+                self.add_screen(window, view)
+            }
             _ => self
         }
     }
@@ -59,28 +62,25 @@ impl<W: Debug + Clone + Eq> State<W> {
         }
     }
 
+    fn add_screen(mut self, window: W, view: Geometry) -> Self {
+        self.screens = self.screens.add(Screen::new(window, view));
+        self.update_workspace_view()
+    }
+
+    fn update_workspace_view(mut self) -> Self {
+        if let Some(screen) = self.screens.get_current() {
+            self.workspaces = self.workspaces
+                .update_current(|workspace| workspace.set_view(screen.get_view().clone()))
+        }
+        self
+    }
+
     pub fn goto_workspace(mut self, position: usize) -> Self {
         self.workspaces = self.workspaces
             .update_current(|workspace| workspace.visible(false))
             .set_current(position)
             .update_current(|workspace| workspace.visible(true));
-        self
-    }
-
-    fn next_workspace(mut self) -> Self {
-        self.workspaces = self.workspaces
-            .update_current(|workspace| workspace.visible(false))
-            .next()
-            .update_current(|workspace| workspace.visible(true));
-        self
-    }
-
-    fn previous_workspace(mut self) -> Self {
-        self.workspaces = self.workspaces
-            .update_current(|workspace| workspace.visible(false))
-            .previous()
-            .update_current(|workspace| workspace.visible(true));
-        self
+        self.update_workspace_view()
     }
 
     pub fn next_window(mut self) -> Self {

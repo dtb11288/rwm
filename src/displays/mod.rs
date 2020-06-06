@@ -10,6 +10,7 @@ pub mod xcb_server;
 #[derive(Debug, Eq, PartialEq)]
 pub enum Event<W, K> {
     DisplayInited,
+    ScreenAdded(W, Geometry),
     KeyPressed(K),
     WindowAdded(W, WindowType),
     WindowRemoved(W),
@@ -22,7 +23,6 @@ pub trait DisplayServer: Stream<Item=Event<<Self as DisplayServer>::Window, <Sel
     type Window: Debug + Clone + Eq;
     type KeyCombo: From<KeyCombo> + Hash + Eq + Debug;
     fn new(config: &Config) -> Self;
-    fn get_root_view(&self) -> Geometry;
     fn configure_window(&self, window: &Window<Self::Window>);
     fn set_visibility(&self, window: &Self::Window, show: bool);
     fn quit(&self);

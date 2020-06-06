@@ -50,6 +50,11 @@ impl<W: Debug + Eq + Clone> Workspace<W> {
         }
     }
 
+    pub fn set_view(mut self, view: Geometry) -> Self {
+        self.view.replace(view);
+        self
+    }
+
     pub fn get_name(&self) -> &str {
         &self.name
     }

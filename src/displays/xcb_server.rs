@@ -13,7 +13,6 @@ use std::pin::Pin;
 
 #[derive(Clone)]
 pub struct XcbDisplayServer {
-    root: xcb::Window,
     connection: Rc<ewmh::Connection>,
     events: Rc<RefCell<Vec<Event<xcb::Window, XcbKeyCombo>>>>,
 }
@@ -48,8 +47,6 @@ impl DisplayServer for XcbDisplayServer {
         let (connection, screen_num) = xcb::Connection::connect(None).unwrap();
         let connection = ewmh::Connection::connect(connection).map_err(|e| e.0).unwrap();
         let setup = connection.get_setup();
-        let screen = setup.roots().nth(screen_num as usize).unwrap();
-        let root = screen.root();
 
         let events = [(
             xcb::CW_EVENT_MASK,
@@ -61,24 +58,22 @@ impl DisplayServer for XcbDisplayServer {
                 xcb::EVENT_MASK_SUBSTRUCTURE_NOTIFY,
         )];
 
-        let cookie = xcb::change_window_attributes(&connection, root, &events);
-
-        if !cookie.request_check().is_ok() {
-            panic!("There's another Window Manager Running!");
-        }
+        let screens = setup.roots()
+            .map(|screen| screen.root())
+            .map(|screen| {
+                let cookie = xcb::change_window_attributes(&connection, screen, &events);
+                if !cookie.request_check().is_ok() {
+                    panic!("There's another Window Manager Running!");
+                }
+                screen
+            })
+            .map(|screen| Event::ScreenAdded(screen, Self::get_screen_view(&connection, screen)))
+            .collect();
 
         XcbDisplayServer {
-            root,
             connection: Rc::new(connection),
-            events: Rc::new(RefCell::new(vec![Event::DisplayInited])),
+            events: Rc::new(RefCell::new(screens)),
         }
-    }
-
-    fn get_root_view(&self) -> Geometry {
-        let reply = xcb::get_geometry(&self.connection, self.root)
-            .get_reply()
-            .unwrap();
-        Geometry::new(0, 0, u32::from(reply.width()), u32::from(reply.height()))
     }
 
     fn configure_window(&self, window: &Window<xcb::Window>) {
@@ -114,6 +109,13 @@ impl DisplayServer for XcbDisplayServer {
 }
 
 impl XcbDisplayServer {
+    fn get_screen_view(connection: &xcb::Connection, screen: u32) -> Geometry {
+        let reply = xcb::get_geometry(connection, screen)
+            .get_reply()
+            .unwrap();
+        Geometry::new(0, 0, u32::from(reply.width()), u32::from(reply.height()))
+    }
+
     fn match_event(&self, event: xcb::GenericEvent) -> Event<xcb::Window, XcbKeyCombo> {
         match event.response_type() {
             xcb::CONFIGURE_REQUEST => {
@@ -133,11 +135,11 @@ impl XcbDisplayServer {
             }
             xcb::UNMAP_NOTIFY => {
                 let unmap_notify: &xcb::UnmapNotifyEvent = unsafe { xcb::cast_event(&event) };
-                if unmap_notify.event() == self.root {
+                // if unmap_notify.event() == self.root {
                     Event::WindowRemoved(unmap_notify.event())
-                } else {
-                    Event::Ignored
-                }
+                // } else {
+                //     Event::Ignored
+                // }
             }
             xcb::DESTROY_NOTIFY => {
                 let destroy_event: &xcb::DestroyNotifyEvent = unsafe { xcb::cast_event(&event) };
